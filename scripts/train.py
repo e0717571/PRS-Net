@@ -34,7 +34,7 @@ if __name__ == '__main__':
     labels = torch.from_numpy(info_df['label'].values)
     ancestries = ancestry_encoding(info_df['ancestry'].values)
     splits = generate_splits(labels)
-    ggi_graph = dgl.load_graphs(f'../data/ggi_graph.bin')[0][0]
+    ggi_graph = dgl.load_graphs(f'/home/users/nus/e0717575/scratch/prsnet/PRS-Net-main/data/ggi_graph.bin')[0][0]
 
     ## Device
     device = torch.device('cuda' if (torch.cuda.is_available()) else 'cpu')
@@ -42,6 +42,19 @@ if __name__ == '__main__':
     ## Validation
     for split_id, (train_ids, val_ids, test_ids) in enumerate(splits):
         train_set = Dataset(args.data_path, args.dataset, sample_ids=sample_ids[train_ids],labels=labels[train_ids], balanced_sampling=True)
+
+        # # After loading the dataset (around line 44-46)
+        # sample_feat = train_set[0]['feat']
+        # print(f"Sample feature shape: {sample_feat.shape}")  # Debug print
+
+        # # The shape should be [n_genes, 11]
+        # if len(sample_feat.shape) == 2 and sample_feat.shape[1] == 11:
+        #     n_genes = sample_feat.shape[0]
+        # else:
+        #     raise ValueError(f"Unexpected feature shape: {sample_feat.shape}. Expected [n_genes, 11]")
+
+        # print(f"Number of genes: {n_genes}") 
+
         val_set = Dataset(args.data_path, args.dataset, sample_ids=sample_ids[val_ids],labels=labels[val_ids], balanced_sampling=False)
         test_set = Dataset(args.data_path, args.dataset, sample_ids=sample_ids[test_ids],labels=labels[test_ids], balanced_sampling=False)
 
@@ -49,12 +62,12 @@ if __name__ == '__main__':
         val_loader = DataLoader(val_set, batch_size=128, shuffle=False, num_workers=args.num_workers, worker_init_fn=seed_worker, drop_last=False, pin_memory=True, collate_fn=collate_fn)
         test_loader = DataLoader(test_set, batch_size=128, shuffle=False, num_workers=args.num_workers, worker_init_fn=seed_worker, drop_last=False, pin_memory=True, collate_fn=collate_fn)
 
-        model = PRSNet().to(device)
+        model = PRSNet(n_genes=18973).to(device)
         loss_fn = nn.BCEWithLogitsLoss(reduction='mean')
         optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0)
         metric = AUROC(task='binary')
         trainer = Trainer(device=device)
         best_val_score, best_test_score = trainer.train_and_test(model, ggi_graph, loss_fn, optimizer, metric, train_loader, val_loader, test_loader)
-        print("----------------Split {split_id} final result----------------", flush=True)
+        print(f"----------------Split {split_id} final result----------------", flush=True)
         print(f"best_val_score: {best_val_score}, best_test_score: {best_test_score}")
         
